@@ -1,81 +1,76 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
+const Employee = require('./employeeModel');
 
 const app = express();
+const port = 3000;
+
+// Middleware
 app.use(bodyParser.json());
-app.use(cors());
 
-const db = new sqlite3.Database('./employees.db');
-
-// Create the employees table if it doesn't exist
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS employees (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    position TEXT,
-    department TEXT
-  )`);
-});
+// CRUD operations using the Employee model
 
 // Get all employees
 app.get('/employees', (req, res) => {
-  db.all('SELECT * FROM employees', [], (err, rows) => {
-    if (err) {
-      res.status(500).send(err.message);
-    } else {
-      res.json(rows);
-    }
-  });
+    Employee.getAll((err, rows) => {
+        if (err) {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        res.json({ data: rows });
+    });
 });
 
-// Add a new employee
+// Get a single employee by ID
+app.get('/employees/:id', (req, res) => {
+    const { id } = req.params;
+    Employee.getById(id, (err, row) => {
+        if (err) {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        res.json({ data: row });
+    });
+});
+
+// Create a new employee
 app.post('/employees', (req, res) => {
-  const { name, position, department } = req.body;
-  const stmt = db.prepare('INSERT INTO employees (name, position, department) VALUES (?, ?, ?)');
-  stmt.run([name, position, department], function(err) {
-    if (err) {
-      res.status(500).send(err.message);
-    } else {
-      res.status(201).json({ id: this.lastID, name, position, department });
-    }
-  });
-  stmt.finalize();
+    const newEmployee = req.body;
+    Employee.create(newEmployee, (err, id) => {
+        if (err) {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        res.json({ id });
+    });
 });
 
-// Update an employee
+// Update an employee by ID
 app.put('/employees/:id', (req, res) => {
-  const { id } = req.params;
-  const { name, position, department } = req.body;
-  const stmt = db.prepare('UPDATE employees SET name = ?, position = ?, department = ? WHERE id = ?');
-  stmt.run([name, position, department, id], function(err) {
-    if (err) {
-      res.status(500).send(err.message);
-    } else if (this.changes === 0) {
-      res.status(404).send('Employee not found');
-    } else {
-      res.json({ id, name, position, department });
-    }
-  });
-  stmt.finalize();
+    const { id } = req.params;
+    const updatedEmployee = req.body;
+    Employee.update(id, updatedEmployee, (err, changes) => {
+        if (err) {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        res.json({ changes });
+    });
 });
 
-// Delete an employee
+// Delete an employee by ID
 app.delete('/employees/:id', (req, res) => {
-  const { id } = req.params;
-  const stmt = db.prepare('DELETE FROM employees WHERE id = ?');
-  stmt.run(id, function(err) {
-    if (err) {
-      res.status(500).send(err.message);
-    } else if (this.changes === 0) {
-      res.status(404).send('Employee not found');
-    } else {
-      res.status(204).send();
-    }
-  });
-  stmt.finalize();
+    const { id } = req.params;
+    Employee.delete(id, (err, changes) => {
+        if (err) {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        res.json({ changes });
+    });
 });
 
-const port = 3000;
-app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
+// Start the server
+app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+});
